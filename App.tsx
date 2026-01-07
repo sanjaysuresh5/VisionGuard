@@ -33,7 +33,8 @@ const App: React.FC = () => {
         if (currentBucket) {
           setBucketId(currentBucket);
         } else {
-          setState(prev => ({ ...prev, status: ConnectionStatus.ERROR }));
+          // Connected to AW but no bucket found
+          setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTED, activeApp: 'No Window Bucket Found' }));
           return;
         }
       }
@@ -101,13 +102,14 @@ const App: React.FC = () => {
   }, [fetchActivity]);
 
   const isHttps = window.location.protocol === 'https:';
+  const apiHost = ActivityWatchService.getActiveHost();
 
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex justify-center">
+    <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex justify-center selection:bg-indigo-500/30">
       <div className="w-full max-w-4xl space-y-8">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 rotate-3">
+            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 rotate-3 transition-transform hover:rotate-6">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
@@ -115,12 +117,12 @@ const App: React.FC = () => {
             </div>
             <div>
               <h1 className="text-3xl font-black text-white tracking-tight">VisionGuard</h1>
-              <p className="text-slate-500 text-sm font-medium">ActivityWatch Intelligence</p>
+              <p className="text-slate-500 text-sm font-medium tracking-wide">ActivityWatch Intelligence</p>
             </div>
           </div>
           
           <div className="flex flex-col items-end gap-1">
-            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border ${
+            <div className={`flex items-center gap-2 px-3 py-1 rounded-full border transition-all ${
               state.status === ConnectionStatus.CONNECTED 
                 ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
                 : state.status === ConnectionStatus.CONNECTING
@@ -136,7 +138,13 @@ const App: React.FC = () => {
         </header>
 
         {state.status === ConnectionStatus.ERROR && (
-          <div className="bg-rose-500/10 border border-rose-500/20 p-8 rounded-[2rem] space-y-6">
+          <div className="bg-rose-500/10 border border-rose-500/20 p-8 rounded-[2.5rem] space-y-6 relative overflow-hidden group">
+            <div className="absolute top-0 right-0 p-8 opacity-5 group-hover:opacity-10 transition-opacity">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-32 w-32" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636" />
+              </svg>
+            </div>
+
             <div className="flex items-start gap-4">
               <div className="bg-rose-500/20 p-3 rounded-xl text-rose-500 shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -144,52 +152,60 @@ const App: React.FC = () => {
                 </svg>
               </div>
               <div className="flex-1">
-                <h3 className="font-bold text-xl text-rose-400">Connection Interrupted</h3>
+                <h3 className="font-bold text-xl text-rose-400">Connection Failed (NetworkError)</h3>
                 <p className="text-rose-300/70 mt-1 leading-relaxed">
-                  The local ActivityWatch service could not be reached.
+                  The browser blocked the connection to ActivityWatch. This is common when different ports or security tools are involved.
                 </p>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className={`p-5 rounded-2xl border ${isHttps ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
-                <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 text-xs">1</span>
-                  Protocol Security
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 relative z-10">
+              <div className="bg-slate-900/80 p-6 rounded-3xl border border-slate-800 space-y-3">
+                <h4 className="text-white font-bold text-sm flex items-center gap-2">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 text-xs">1</span>
+                  Check Privacy Tools
                 </h4>
-                <div className="text-sm text-slate-400 leading-relaxed">
-                  {isHttps ? (
-                    <>
-                      You are using <b className="text-amber-400">HTTPS</b>. Browsers block secure sites from talking to local HTTP.
-                      <br/><br/>
-                      <a href={window.location.href.replace('https:', 'http:')} className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors">
-                        Switch to HTTP
-                      </a>
-                    </>
-                  ) : (
-                    "Using HTTP (Correct for localhost)."
-                  )}
-                </div>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Your browser extensions (like <b>uBlock Origin</b> or <b>Privacy Badger</b>) might be blocking requests to <code>localhost</code>. 
+                  <br/><br/>
+                  Try disabling them for this page and refresh.
+                </p>
               </div>
 
-              <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800">
-                <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
-                  <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 text-xs">2</span>
-                  Service Check
+              <div className="bg-slate-900/80 p-6 rounded-3xl border border-slate-800 space-y-3">
+                <h4 className="text-white font-bold text-sm flex items-center gap-2">
+                  <span className="w-6 h-6 flex items-center justify-center rounded-lg bg-indigo-500/20 text-indigo-400 text-xs">2</span>
+                  Verify API Access
                 </h4>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Open your terminal and ensure ActivityWatch is running, or visit 
-                  <a href="http://localhost:5600" target="_blank" className="text-indigo-400 ml-1 hover:underline font-bold">http://localhost:5600</a>.
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Open this link in a new tab. If you see JSON text, the server is working:
+                  <a 
+                    href={`${apiHost}/api/0/buckets`} 
+                    target="_blank" 
+                    className="block mt-2 text-indigo-400 hover:text-indigo-300 font-mono bg-indigo-500/10 p-2 rounded truncate transition-colors"
+                  >
+                    {apiHost}/api/0/buckets
+                  </a>
                 </p>
               </div>
             </div>
 
-            <button 
-              onClick={() => { setBucketId(null); fetchActivity(); }}
-              className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl transition-all border border-slate-700 active:scale-[0.98]"
-            >
-              Retry Sync
-            </button>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <button 
+                onClick={() => { setBucketId(null); fetchActivity(); }}
+                className="flex-1 py-4 bg-rose-500 hover:bg-rose-400 text-white font-black rounded-2xl transition-all shadow-lg shadow-rose-500/20 active:scale-[0.98]"
+              >
+                Retry Connection
+              </button>
+              {isHttps && (
+                <a 
+                  href={window.location.href.replace('https:', 'http:')}
+                  className="flex-1 py-4 bg-slate-800 hover:bg-slate-700 text-slate-300 font-bold rounded-2xl transition-all border border-slate-700 text-center"
+                >
+                  Switch to HTTP Mode
+                </a>
+              )}
+            </div>
           </div>
         )}
 
@@ -200,20 +216,39 @@ const App: React.FC = () => {
             <AIRecommendations suggestion={suggestion} loading={loadingSuggestion} />
           </div>
           
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] space-y-6">
-            <h3 className="text-white font-bold text-lg">Health Protocol</h3>
+          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] space-y-6 shadow-xl relative overflow-hidden">
+             <div className="absolute -top-10 -right-10 w-32 h-32 bg-indigo-500/5 rounded-full blur-3xl"></div>
+            <h3 className="text-white font-bold text-lg flex items-center gap-2">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 text-indigo-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+              </svg>
+              Health Protocol
+            </h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Target Interval</span>
-                <span className="text-slate-200 font-mono bg-slate-800 px-2 py-0.5 rounded">20:00</span>
+              <div className="flex justify-between items-center text-sm group">
+                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Target Interval</span>
+                <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">20:00</span>
               </div>
-              <div className="flex justify-between items-center text-sm">
-                <span className="text-slate-500">Rest Duration</span>
-                <span className="text-slate-200 font-mono bg-slate-800 px-2 py-0.5 rounded">00:20</span>
+              <div className="flex justify-between items-center text-sm group">
+                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Rest Duration</span>
+                <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">00:20</span>
+              </div>
+              <div className="flex justify-between items-center text-sm group">
+                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Distance</span>
+                <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">20+ ft</span>
               </div>
             </div>
+            <p className="text-[11px] text-slate-500 italic leading-relaxed pt-4 border-t border-slate-800/50">
+              ActivityWatch tracks your focus, VisionGuard protects your eyes. Automating health habits one heartbeat at a time.
+            </p>
           </div>
         </div>
+
+        <footer className="text-center pb-8 pt-4">
+          <p className="text-slate-800 text-[10px] font-black tracking-[0.3em] uppercase">
+            VisionGuard Engine • Distributed Health Intelligence
+          </p>
+        </footer>
       </div>
     </div>
   );
