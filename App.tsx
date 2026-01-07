@@ -6,7 +6,7 @@ import { AppState, ConnectionStatus, BreakSuggestion } from './types.ts';
 import { Dashboard } from './components/Dashboard.tsx';
 import { AIRecommendations } from './components/AIRecommendations.tsx';
 
-const REFRESH_INTERVAL = 15000; 
+const REFRESH_INTERVAL = 10000; 
 const BREAK_THRESHOLD = 20;
 
 const App: React.FC = () => {
@@ -21,43 +21,22 @@ const App: React.FC = () => {
 
   const [suggestion, setSuggestion] = useState<BreakSuggestion | null>(null);
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
-  const [bucketId, setBucketId] = useState<string | null>(null);
-  const [manualJson, setManualJson] = useState('');
+  const [logs, setLogs] = useState<string[]>(["[SYS] Initializing VisionGuard Stack..."]);
 
-  const handleManualSync = () => {
-    try {
-      const parsed = JSON.parse(manualJson);
-      ActivityWatchService.setManualBuckets(parsed);
-      setBucketId(null);
-      fetchActivity();
-      setManualJson('');
-    } catch (e) {
-      alert("Invalid JSON format. Please paste the full output from the ActivityWatch API link.");
-    }
+  const addLog = (msg: string) => {
+    setLogs(prev => [ `[${new Date().toLocaleTimeString()}] ${msg}`, ...prev].slice(0, 5));
   };
 
   const fetchActivity = useCallback(async () => {
     try {
-      let currentBucket = bucketId;
-      
-      if (!currentBucket) {
-        setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTING }));
-        currentBucket = await ActivityWatchService.findWindowBucket();
-        if (currentBucket) {
-          setBucketId(currentBucket);
-        } else {
-          setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTED, activeApp: 'Waiting for Activity...' }));
-          return;
-        }
-      }
-
-      const latestEvent = await ActivityWatchService.getLatestEvent(currentBucket);
+      setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTING }));
+      const latestEvent = await ActivityWatchService.getLatestEvent();
       
       if (latestEvent) {
         const eventTime = new Date(latestEvent.timestamp);
         const now = new Date();
         const diffMs = now.getTime() - eventTime.getTime();
-        const isActuallyAway = diffMs > (60 * 1000 * 3); 
+        const isActuallyAway = diffMs > (60 * 1000 * 5); 
 
         setState(prev => {
           const newStreak = isActuallyAway ? 0 : prev.currentStreak + (REFRESH_INTERVAL / 60000);
@@ -65,6 +44,10 @@ const App: React.FC = () => {
 
           if (roundedStreak >= BREAK_THRESHOLD && prev.currentStreak < BREAK_THRESHOLD) {
             triggerBreak(latestEvent.data.app);
+          }
+
+          if (latestEvent.data.app !== prev.activeApp) {
+            addLog(`Switch: ${latestEvent.data.app}`);
           }
 
           return {
@@ -79,24 +62,19 @@ const App: React.FC = () => {
         });
       }
     } catch (e: any) {
-      console.error("VisionGuard Sync Error:", e);
+      console.error("Bridge Error:", e);
       setState(prev => ({ ...prev, status: ConnectionStatus.ERROR }));
     }
-  }, [bucketId]);
+  }, []);
 
   const triggerBreak = async (app: string) => {
+    addLog(`ALERT: 20m threshold reached in ${app}`);
     if (Notification.permission === 'granted') {
-      new Notification('VisionGuard: Time for a break!', {
-        body: `You've been focused on ${app} for 20 minutes. Look away!`,
+      new Notification('VisionGuard: 20-20-20 Rule', {
+        body: `Step away from ${app}. Look 20ft away.`,
         icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966486.png'
       });
     }
-
-    try {
-      const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.volume = 0.2;
-      audio.play();
-    } catch (e) {}
 
     setLoadingSuggestion(true);
     const advice = await GeminiCoach.getBreakSuggestion(app);
@@ -113,144 +91,122 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchActivity]);
 
-  const isHttps = window.location.protocol === 'https:';
-  const apiHost = ActivityWatchService.getActiveHost();
-
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex justify-center selection:bg-indigo-500/30">
-      <div className="w-full max-w-4xl space-y-8">
-        <header className="flex items-center justify-between">
+    <div className="min-h-screen bg-[#050505] text-slate-300 font-mono p-4 md:p-8 flex justify-center">
+      <div className="w-full max-w-5xl space-y-6">
+        {/* Header Bar */}
+        <header className="flex flex-col md:flex-row justify-between items-start md:items-center border-b border-white/10 pb-6 gap-4">
           <div className="flex items-center gap-4">
-            <div className="w-14 h-14 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-500/20 rotate-3 transition-transform hover:rotate-0">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+            <div className="w-10 h-10 bg-indigo-600 rounded flex items-center justify-center shadow-[0_0_20px_rgba(79,70,229,0.4)]">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
               </svg>
             </div>
             <div>
-              <h1 className="text-3xl font-black text-white tracking-tight leading-none">VisionGuard</h1>
-              <p className="text-slate-500 text-sm font-medium mt-1 tracking-wide">ActivityWatch Intelligence</p>
+              <h1 className="text-xl font-black text-white tracking-widest uppercase">VisionGuard v2.0</h1>
+              <p className="text-[10px] text-slate-500 font-bold uppercase tracking-widest">Python/Flask Stack • Ocular Defense</p>
             </div>
           </div>
-          
-          <div className={`px-4 py-1.5 rounded-full border flex items-center gap-2 transition-all ${
-            state.status === ConnectionStatus.CONNECTED 
-              ? 'bg-emerald-500/10 border-emerald-500/20 text-emerald-400' 
-              : state.status === ConnectionStatus.CONNECTING
-              ? 'bg-amber-500/10 border-amber-500/20 text-amber-400'
-              : 'bg-rose-500/10 border-rose-500/20 text-rose-400'
-          }`}>
-            <span className={`w-2 h-2 rounded-full ${state.status === ConnectionStatus.CONNECTED ? 'bg-emerald-500 animate-pulse' : 'bg-current'}`}></span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.1em]">
-              {state.status.toLowerCase()}
-            </span>
+
+          <div className="flex items-center gap-3">
+             <div className="flex flex-col items-end">
+                <span className="text-[9px] font-bold text-slate-500 uppercase">Bridge Connection</span>
+                <span className={`text-xs font-bold uppercase ${state.status === ConnectionStatus.CONNECTED ? 'text-indigo-400' : 'text-rose-500'}`}>
+                  {state.status === ConnectionStatus.CONNECTED ? 'Active (HTTP:5000)' : 'Disconnected'}
+                </span>
+             </div>
+             <div className={`w-3 h-3 rounded-full ${state.status === ConnectionStatus.CONNECTED ? 'bg-indigo-500 animate-pulse shadow-[0_0_10px_rgba(99,102,241,0.8)]' : 'bg-rose-500'}`}></div>
           </div>
         </header>
 
         {state.status === ConnectionStatus.ERROR && (
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] space-y-8 shadow-2xl animate-in fade-in slide-in-from-bottom-4 duration-500">
-            <div className="flex items-start gap-5">
-              <div className="bg-rose-500/10 p-4 rounded-2xl text-rose-500">
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                </svg>
-              </div>
-              <div className="flex-1">
-                <h3 className="font-bold text-2xl text-white">Security Block Detected</h3>
-                <p className="text-slate-400 mt-2 leading-relaxed">
-                  Browsers often block web apps from talking to local software (localhost) for safety. You can bypass this by bridging the data manually.
-                </p>
-              </div>
+          <div className="bg-rose-500/5 border border-rose-500/20 p-8 rounded-lg space-y-6">
+            <div className="flex items-center gap-4 text-rose-500">
+               <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+               </svg>
+               <h3 className="text-lg font-bold uppercase tracking-wider">Flask Bridge Offline</h3>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-                  <span className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px]">1</span>
-                  Get the Data
-                </div>
-                <p className="text-xs text-slate-500">Open the link below and copy everything you see (the JSON text):</p>
-                <a 
-                  href={`${apiHost}/api/0/buckets`} 
-                  target="_blank" 
-                  className="block p-4 bg-slate-950 border border-slate-800 rounded-xl text-indigo-400 font-mono text-xs hover:border-indigo-500/50 transition-colors break-all"
-                >
-                  {apiHost}/api/0/buckets
-                </a>
-              </div>
-
-              <div className="space-y-4">
-                <div className="flex items-center gap-2 text-indigo-400 font-bold text-sm">
-                  <span className="w-6 h-6 rounded-full bg-indigo-500/20 flex items-center justify-center text-[10px]">2</span>
-                  Bridge the Gap
-                </div>
-                <textarea 
-                  value={manualJson}
-                  onChange={(e) => setManualJson(e.target.value)}
-                  placeholder="Paste the JSON output here..."
-                  className="w-full h-24 bg-slate-950 border border-slate-800 rounded-xl p-3 text-xs font-mono text-slate-300 focus:border-indigo-500 outline-none transition-colors resize-none"
-                />
-                <button 
-                  onClick={handleManualSync}
-                  className="w-full py-3 bg-indigo-600 hover:bg-indigo-500 text-white font-bold rounded-xl transition-all active:scale-95 shadow-lg shadow-indigo-600/20"
-                >
-                  Manual Sync & Fix
-                </button>
-              </div>
+            <p className="text-sm text-slate-400 leading-relaxed max-w-2xl">
+              Browsers block direct communication with ActivityWatch. You must run the <code>server.py</code> file locally to create a communication bridge.
+            </p>
+            <div className="bg-black/50 p-6 rounded border border-white/5 space-y-4">
+               <p className="text-xs font-bold text-indigo-400 uppercase">Step-by-Step Fix:</p>
+               <ol className="text-xs text-slate-500 space-y-2 list-decimal pl-4">
+                 <li>Copy the <b>server.py</b> code provided.</li>
+                 <li>Run <code>pip install flask flask-cors requests</code></li>
+                 <li>Start the server with <code>python server.py</code></li>
+                 <li>Keep the terminal open and refresh this page.</li>
+               </ol>
             </div>
-
-            <div className="pt-6 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-4">
-               <p className="text-[10px] text-slate-600 max-w-sm">
-                Pro tip: If using Brave, turning off "Shields" for this site usually allows the automatic sync to work instantly.
-               </p>
-               <button 
-                onClick={() => { setBucketId(null); fetchActivity(); }}
-                className="text-slate-400 hover:text-white text-xs font-bold underline decoration-slate-800"
-               >
-                Retry Auto-Sync
-               </button>
-            </div>
+            <button 
+              onClick={fetchActivity}
+              className="px-8 py-3 bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-indigo-500 hover:text-white transition-all"
+            >
+              Re-scan Port 5000
+            </button>
           </div>
         )}
 
-        <Dashboard state={state} onRefresh={() => { setBucketId(null); fetchActivity(); }} />
-        
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <div className="md:col-span-2">
-            <AIRecommendations suggestion={suggestion} loading={loadingSuggestion} />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <div className="lg:col-span-2 space-y-6">
+            <Dashboard state={state} onRefresh={fetchActivity} />
+            
+            {/* Live Terminal */}
+            <div className="bg-[#0a0a0a] border border-white/5 p-6 rounded-lg">
+               <div className="flex justify-between items-center mb-4">
+                  <h3 className="text-[10px] font-black uppercase text-slate-500 tracking-widest">System Events</h3>
+                  <div className="flex gap-1">
+                    <div className="w-2 h-2 rounded-full bg-white/10"></div>
+                    <div className="w-2 h-2 rounded-full bg-white/10"></div>
+                  </div>
+               </div>
+               <div className="space-y-2">
+                 {logs.map((log, i) => (
+                   <div key={i} className="text-[11px] font-mono flex gap-3 opacity-80 hover:opacity-100 transition-opacity">
+                      <span className="text-indigo-500 shrink-0">>></span>
+                      <span className="text-slate-400">{log}</span>
+                   </div>
+                 ))}
+                 {state.status === ConnectionStatus.CONNECTED && (
+                   <div className="text-[11px] font-mono flex gap-3 animate-pulse text-indigo-400">
+                     <span className="shrink-0">>></span>
+                     <span>Monitoring Heartbeats...</span>
+                   </div>
+                 )}
+               </div>
+            </div>
           </div>
-          
-          <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2.5rem] flex flex-col justify-between shadow-xl">
-            <div>
-              <h3 className="text-white font-bold text-lg mb-6 flex items-center gap-2">
-                 <div className="w-2 h-2 bg-indigo-500 rounded-full"></div>
-                 Protocol
+
+          <div className="space-y-6">
+            <AIRecommendations suggestion={suggestion} loading={loadingSuggestion} />
+            
+            <div className="bg-indigo-900/10 border border-indigo-500/20 p-8 rounded-lg">
+              <h3 className="text-white font-black text-xs uppercase tracking-widest mb-6 border-b border-indigo-500/20 pb-4">
+                Health Protocol
               </h3>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500 font-medium">Interval</span>
-                  <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">20m</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500 font-medium">Rest</span>
-                  <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">20s</span>
-                </div>
-                <div className="flex justify-between items-center text-sm">
-                  <span className="text-slate-500 font-medium">Distance</span>
-                  <span className="text-slate-200 font-mono bg-slate-800 px-3 py-1 rounded-lg">20ft+</span>
-                </div>
+              <div className="space-y-6">
+                 <div>
+                   <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Status</p>
+                   <p className={`text-sm font-bold ${state.currentStreak >= 20 ? 'text-rose-500' : 'text-indigo-400'}`}>
+                     {state.currentStreak >= 20 ? 'CRITICAL - REST NEEDED' : 'OPERATIONAL'}
+                   </p>
+                 </div>
+                 <div>
+                   <p className="text-[9px] text-slate-500 uppercase font-bold mb-1">Target</p>
+                   <p className="text-sm font-bold text-white">20-20-20 Scientific Method</p>
+                 </div>
+                 <p className="text-[10px] text-slate-600 leading-relaxed italic">
+                    AI analyzes your activity patterns via ActivityWatch to prevent digital eye strain before it begins.
+                 </p>
               </div>
             </div>
-            
-            <p className="text-[11px] text-slate-600 italic leading-relaxed pt-8 border-t border-slate-800/50 mt-4">
-              VisionGuard uses ActivityWatch heartbeats to monitor your ocular health in real-time.
-            </p>
           </div>
         </div>
 
-        <footer className="text-center pb-12">
-          <p className="text-[9px] font-black tracking-[0.5em] text-slate-800 uppercase">
-            VisionGuard Engine • Enterprise Health Analytics
+        <footer className="pt-12 text-center">
+          <p className="text-[8px] font-black tracking-[1em] text-slate-800 uppercase">
+            Deep Health Integration • VisionGuard Global
           </p>
         </footer>
       </div>

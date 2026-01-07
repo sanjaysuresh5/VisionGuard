@@ -13,64 +13,56 @@ export const Dashboard: React.FC<DashboardProps> = ({ state, onRefresh }) => {
   const isDisconnected = state.status !== ConnectionStatus.CONNECTED;
 
   return (
-    <div className={`transition-opacity duration-500 ${isDisconnected ? 'opacity-40 grayscale pointer-events-none' : 'opacity-100'}`}>
-      <div className="bg-slate-900 rounded-[2.5rem] p-10 border border-slate-800 shadow-2xl overflow-hidden relative group">
-        {/* Progress Background */}
-        <div 
-          className={`absolute bottom-0 left-0 h-2 transition-all duration-1000 ease-out ${isAlert ? 'bg-rose-500 shadow-[0_0_20px_rgba(244,63,94,0.5)]' : 'bg-indigo-500 shadow-[0_0_20px_rgba(99,102,241,0.5)]'}`}
-          style={{ width: `${progress}%` }}
-        />
-
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-8">
-          <div>
-            <div className="flex items-center gap-2 mb-2">
-              <h2 className="text-slate-500 font-bold uppercase tracking-[0.2em] text-[10px]">Session Analytics</h2>
-              <div className="h-px flex-1 bg-slate-800 min-w-[40px]"></div>
+    <div className={`transition-all duration-700 ${isDisconnected ? 'opacity-20 blur-sm pointer-events-none' : 'opacity-100'}`}>
+      <div className="bg-[#0a0a0a] rounded-lg p-10 border border-white/5 relative overflow-hidden">
+        {/* Scanline Effect */}
+        <div className="absolute inset-0 pointer-events-none bg-[linear-gradient(rgba(18,16,16,0)_50%,rgba(0,0,0,0.25)_50%),linear-gradient(90deg,rgba(255,0,0,0.06),rgba(0,255,0,0.02),rgba(0,0,255,0.06))] z-10 bg-[length:100%_2px,3px_100%]"></div>
+        
+        <div className="relative z-20">
+          <div className="flex justify-between items-start mb-12">
+            <div>
+              <p className="text-[9px] font-black text-indigo-500 uppercase tracking-[0.4em] mb-2">Primary Monitor</p>
+              <h2 className="text-4xl font-black text-white tracking-tighter uppercase italic">
+                {state.activeApp || 'NO_CONTEXT'}
+              </h2>
             </div>
-            <div className="flex items-baseline gap-3">
-              <span className={`text-8xl font-black tracking-tighter tabular-nums ${isAlert ? 'text-rose-500' : 'text-white'}`}>
-                {state.currentStreak}
-              </span>
-              <div className="flex flex-col">
-                 <span className="text-slate-500 font-bold text-xl uppercase tracking-tighter -mb-1">Minutes</span>
-                 <span className="text-slate-600 font-medium text-xs">Continuous</span>
+            <div className="text-right">
+              <p className="text-[9px] font-black text-slate-600 uppercase tracking-[0.4em] mb-2">Duration</p>
+              <div className="flex items-baseline gap-2 justify-end">
+                <span className={`text-5xl font-black tabular-nums ${isAlert ? 'text-rose-500' : 'text-indigo-400'}`}>
+                  {state.currentStreak}
+                </span>
+                <span className="text-slate-500 text-xs font-bold uppercase">Min</span>
               </div>
             </div>
           </div>
 
-          <div className="flex flex-col items-end">
-            <div className={`px-6 py-2 rounded-2xl text-[10px] font-black uppercase tracking-widest mb-6 border-2 transition-colors ${
-              isAlert 
-                ? 'bg-rose-500/10 text-rose-500 border-rose-500/30 animate-bounce' 
-                : 'bg-emerald-500/10 text-emerald-500 border-emerald-500/30'
-            }`}>
-              {isAlert ? '⚠️ Look Away Now' : '✨ Focus Phase'}
-            </div>
-            
-            <button 
-              onClick={(e) => { e.preventDefault(); onRefresh(); }}
-              className="group/btn bg-slate-800 p-4 hover:bg-slate-700 rounded-2xl transition-all text-slate-400 hover:text-white border border-slate-700 active:scale-95"
-              title="Sync ActivityWatch Data"
-            >
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6 group-hover/btn:rotate-180 transition-transform duration-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-              </svg>
-            </button>
+          {/* Progress Bar */}
+          <div className="space-y-3">
+             <div className="flex justify-between items-center text-[9px] font-bold text-slate-500 uppercase tracking-widest">
+                <span>Safe Zone</span>
+                <span>Threshold reached at 20m</span>
+             </div>
+             <div className="h-4 bg-white/5 rounded-sm overflow-hidden p-1 border border-white/10">
+                <div 
+                  className={`h-full transition-all duration-1000 ease-in-out ${isAlert ? 'bg-rose-500' : 'bg-indigo-500 shadow-[0_0_15px_rgba(99,102,241,0.5)]'}`}
+                  style={{ width: `${progress}%` }}
+                />
+             </div>
           </div>
-        </div>
 
-        <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-6">
-          <div className="bg-black/20 p-6 rounded-3xl border border-white/5 hover:border-white/10 transition-colors">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block mb-2">Active Context</span>
-            <span className="text-slate-200 font-bold text-lg truncate block">
-              {state.activeApp || 'Initializing...'}
-            </span>
-          </div>
-          <div className="bg-black/20 p-6 rounded-3xl border border-white/5 hover:border-white/10 transition-colors">
-            <span className="text-[10px] text-slate-500 uppercase font-bold tracking-widest block mb-2">Target Window</span>
-            <span className="text-slate-300 font-medium text-sm truncate block italic">
-              {state.activeTitle || 'Waiting for heartbeat...'}
-            </span>
+          <div className="mt-12 grid grid-cols-1 md:grid-cols-2 gap-8 border-t border-white/5 pt-8">
+            <div className="group">
+              <p className="text-[9px] text-slate-600 uppercase font-black mb-1 group-hover:text-indigo-500 transition-colors">Thread ID</p>
+              <p className="text-xs font-bold text-slate-400 break-all leading-relaxed">
+                {state.activeTitle || 'awaiting_sync_signal...'}
+              </p>
+            </div>
+            <div className="flex flex-col items-end justify-center">
+              <div className={`px-4 py-2 text-[10px] font-black uppercase tracking-tighter border ${isAlert ? 'border-rose-500 text-rose-500 bg-rose-500/10' : 'border-indigo-500 text-indigo-500 bg-indigo-500/10'}`}>
+                {isAlert ? 'SYSTEM_ALERT: VISION_STRAIN' : 'HEALTH_STATUS: OPTIMAL'}
+              </div>
+            </div>
           </div>
         </div>
       </div>
