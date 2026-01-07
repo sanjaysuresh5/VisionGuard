@@ -1,12 +1,12 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { ActivityWatchService } from './services/activityWatch';
-import { GeminiCoach } from './services/gemini';
-import { AppState, ConnectionStatus, BreakSuggestion } from './types';
-import { Dashboard } from './components/Dashboard';
-import { AIRecommendations } from './components/AIRecommendations';
+import React, { useState, useEffect, useCallback } from 'react';
+import { ActivityWatchService } from './services/activityWatch.ts';
+import { GeminiCoach } from './services/gemini.ts';
+import { AppState, ConnectionStatus, BreakSuggestion } from './types.ts';
+import { Dashboard } from './components/Dashboard.tsx';
+import { AIRecommendations } from './components/AIRecommendations.tsx';
 
-const REFRESH_INTERVAL = 30000; // 30 seconds
+const REFRESH_INTERVAL = 15000; 
 const BREAK_THRESHOLD = 20; // minutes
 
 const App: React.FC = () => {
@@ -22,19 +22,16 @@ const App: React.FC = () => {
   const [suggestion, setSuggestion] = useState<BreakSuggestion | null>(null);
   const [loadingSuggestion, setLoadingSuggestion] = useState(false);
   const [bucketId, setBucketId] = useState<string | null>(null);
-  const [errorType, setErrorType] = useState<'NONE' | 'CORS' | 'OFFLINE'>('NONE');
 
   const fetchActivity = useCallback(async () => {
-    let currentBucket = bucketId;
-    
     try {
+      let currentBucket = bucketId;
+      
       if (!currentBucket) {
         setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTING }));
         currentBucket = await ActivityWatchService.findWindowBucket();
         if (currentBucket) {
           setBucketId(currentBucket);
-          setState(prev => ({ ...prev, status: ConnectionStatus.CONNECTED }));
-          setErrorType('NONE');
         } else {
           setState(prev => ({ ...prev, status: ConnectionStatus.ERROR }));
           return;
@@ -47,7 +44,7 @@ const App: React.FC = () => {
         const eventTime = new Date(latestEvent.timestamp);
         const now = new Date();
         const diffMs = now.getTime() - eventTime.getTime();
-        const isActuallyAway = diffMs > (60 * 1000 * 5); // 5 mins idle
+        const isActuallyAway = diffMs > (60 * 1000 * 3); 
 
         setState(prev => {
           const newStreak = isActuallyAway ? 0 : prev.currentStreak + (REFRESH_INTERVAL / 60000);
@@ -69,29 +66,22 @@ const App: React.FC = () => {
         });
       }
     } catch (e: any) {
-      console.error("Fetch error details:", e);
+      console.error("VisionGuard Sync Error:", e);
       setState(prev => ({ ...prev, status: ConnectionStatus.ERROR }));
-      
-      // Heuristic to detect CORS/Mixed Content vs just being offline
-      if (window.location.protocol === 'https:') {
-        setErrorType('CORS'); // Likely Mixed Content block
-      } else {
-        setErrorType('OFFLINE');
-      }
     }
   }, [bucketId]);
 
   const triggerBreak = async (app: string) => {
     if (Notification.permission === 'granted') {
-      new Notification('20-20-20 Rule Alert!', {
-        body: 'Time to look away! Give your eyes a 20-second break.',
+      new Notification('VisionGuard: 20-20-20 Rule', {
+        body: `You've been using ${app} for 20 minutes. Look 20ft away for 20s.`,
         icon: 'https://cdn-icons-png.flaticon.com/512/2966/2966486.png'
       });
     }
 
     try {
       const audio = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-      audio.volume = 0.4;
+      audio.volume = 0.3;
       audio.play();
     } catch (e) {}
 
@@ -110,8 +100,10 @@ const App: React.FC = () => {
     return () => clearInterval(interval);
   }, [fetchActivity]);
 
+  const isHttps = window.location.protocol === 'https:';
+
   return (
-    <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex justify-center selection:bg-indigo-500/30">
+    <div className="min-h-screen bg-slate-950 p-4 md:p-8 flex justify-center">
       <div className="w-full max-w-4xl space-y-8">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-4">
@@ -146,49 +138,57 @@ const App: React.FC = () => {
         {state.status === ConnectionStatus.ERROR && (
           <div className="bg-rose-500/10 border border-rose-500/20 p-8 rounded-[2rem] space-y-6">
             <div className="flex items-start gap-4">
-              <div className="bg-rose-500/20 p-3 rounded-xl text-rose-500">
+              <div className="bg-rose-500/20 p-3 rounded-xl text-rose-500 shrink-0">
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
                 </svg>
               </div>
-              <div>
-                <h3 className="font-bold text-xl text-rose-400">Connection Failed</h3>
+              <div className="flex-1">
+                <h3 className="font-bold text-xl text-rose-400">Connection Interrupted</h3>
                 <p className="text-rose-300/70 mt-1 leading-relaxed">
-                  We can't talk to ActivityWatch on <code className="bg-black/30 px-1 rounded">localhost:5600</code>.
+                  The local ActivityWatch service could not be reached.
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800">
+              <div className={`p-5 rounded-2xl border ${isHttps ? 'bg-amber-500/5 border-amber-500/20' : 'bg-slate-900/50 border-slate-800'}`}>
                 <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
                   <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 text-xs">1</span>
-                  Is ActivityWatch running?
+                  Protocol Security
                 </h4>
-                <p className="text-sm text-slate-400 leading-relaxed">
-                  Make sure the ActivityWatch application is open on your computer. Visit 
-                  <a href="http://localhost:5600" target="_blank" className="text-indigo-400 ml-1 hover:underline">localhost:5600</a> 
-                  to check manually.
-                </p>
+                <div className="text-sm text-slate-400 leading-relaxed">
+                  {isHttps ? (
+                    <>
+                      You are using <b className="text-amber-400">HTTPS</b>. Browsers block secure sites from talking to local HTTP.
+                      <br/><br/>
+                      <a href={window.location.href.replace('https:', 'http:')} className="inline-block px-4 py-2 bg-indigo-600 hover:bg-indigo-500 text-white rounded-lg text-xs font-bold transition-colors">
+                        Switch to HTTP
+                      </a>
+                    </>
+                  ) : (
+                    "Using HTTP (Correct for localhost)."
+                  )}
+                </div>
               </div>
 
               <div className="bg-slate-900/50 p-5 rounded-2xl border border-slate-800">
                 <h4 className="text-white font-semibold mb-2 flex items-center gap-2">
                   <span className="w-5 h-5 flex items-center justify-center rounded-full bg-slate-800 text-xs">2</span>
-                  Mixed Content / CORS
+                  Service Check
                 </h4>
                 <p className="text-sm text-slate-400 leading-relaxed">
-                  Browsers block <code className="text-rose-400">https</code> sites from calling <code className="text-rose-400">http</code> localhost. 
-                  Try running this app on <b>http</b> or use a CORS-bypass extension.
+                  Open your terminal and ensure ActivityWatch is running, or visit 
+                  <a href="http://localhost:5600" target="_blank" className="text-indigo-400 ml-1 hover:underline font-bold">http://localhost:5600</a>.
                 </p>
               </div>
             </div>
 
             <button 
               onClick={() => { setBucketId(null); fetchActivity(); }}
-              className="w-full py-4 bg-rose-500 hover:bg-rose-400 text-white font-bold rounded-2xl transition-all shadow-lg shadow-rose-500/20 active:scale-[0.98]"
+              className="w-full py-4 bg-slate-800 hover:bg-slate-700 text-white font-bold rounded-2xl transition-all border border-slate-700 active:scale-[0.98]"
             >
-              Retry Connection
+              Retry Sync
             </button>
           </div>
         )}
@@ -203,39 +203,17 @@ const App: React.FC = () => {
           <div className="bg-slate-900 border border-slate-800 p-8 rounded-[2rem] space-y-6">
             <h3 className="text-white font-bold text-lg">Health Protocol</h3>
             <div className="space-y-4">
-              <div className="flex justify-between items-center text-sm group">
-                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Target Interval</span>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500">Target Interval</span>
                 <span className="text-slate-200 font-mono bg-slate-800 px-2 py-0.5 rounded">20:00</span>
               </div>
-              <div className="flex justify-between items-center text-sm group">
-                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Rest Duration</span>
+              <div className="flex justify-between items-center text-sm">
+                <span className="text-slate-500">Rest Duration</span>
                 <span className="text-slate-200 font-mono bg-slate-800 px-2 py-0.5 rounded">00:20</span>
               </div>
-              <div className="flex justify-between items-center text-sm group">
-                <span className="text-slate-500 group-hover:text-slate-400 transition-colors">Visual Depth</span>
-                <span className="text-slate-200 font-mono bg-slate-800 px-2 py-0.5 rounded">20+ ft</span>
-              </div>
-            </div>
-            <div className="pt-6 border-t border-slate-800">
-               <div className="flex gap-3 items-start">
-                 <div className="mt-1 text-indigo-500">
-                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
-                   </svg>
-                 </div>
-                 <p className="text-[11px] text-slate-500 leading-relaxed italic">
-                  Digital eye strain is real. This app helps you prevent CVS (Computer Vision Syndrome) by automating your break reminders.
-                 </p>
-               </div>
             </div>
           </div>
         </div>
-
-        <footer className="text-center pb-8">
-          <p className="text-slate-700 text-xs font-medium tracking-widest uppercase">
-            VisionGuard Engine • Secure Local Processing
-          </p>
-        </footer>
       </div>
     </div>
   );
