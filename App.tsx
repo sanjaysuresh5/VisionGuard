@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback } from 'react';
 import { ActivityWatchService } from './services/activityWatch.ts';
 import { GeminiCoach } from './services/gemini.ts';
@@ -65,7 +64,7 @@ const App: React.FC = () => {
       console.error("Bridge Error:", e);
       setState(prev => ({ ...prev, status: ConnectionStatus.ERROR }));
     }
-  }, []);
+  }, [state.activeApp]); // Re-memoize if activeApp changes to ensure logs stay current
 
   const triggerBreak = async (app: string) => {
     addLog(`ALERT: 20m threshold reached in ${app}`);
@@ -120,7 +119,7 @@ const App: React.FC = () => {
         </header>
 
         {state.status === ConnectionStatus.ERROR && (
-          <div className="bg-rose-500/5 border border-rose-500/20 p-8 rounded-lg space-y-6">
+          <div className="bg-rose-500/5 border border-rose-500/20 p-8 rounded-lg space-y-6 animate-in fade-in duration-500">
             <div className="flex items-center gap-4 text-rose-500">
                <svg xmlns="http://www.w3.org/2000/svg" className="h-8 w-8" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
@@ -128,22 +127,22 @@ const App: React.FC = () => {
                <h3 className="text-lg font-bold uppercase tracking-wider">Flask Bridge Offline</h3>
             </div>
             <p className="text-sm text-slate-400 leading-relaxed max-w-2xl">
-              Browsers block direct communication with ActivityWatch. You must run the <code>server.py</code> file locally to create a communication bridge.
+              Browsers block direct communication with local ports for security. You must run the <code>server.py</code> bridge locally to bypass this block.
             </p>
             <div className="bg-black/50 p-6 rounded border border-white/5 space-y-4">
-               <p className="text-xs font-bold text-indigo-400 uppercase">Step-by-Step Fix:</p>
+               <p className="text-xs font-bold text-indigo-400 uppercase tracking-tighter">Terminal Execution Sequence:</p>
                <ol className="text-xs text-slate-500 space-y-2 list-decimal pl-4">
-                 <li>Copy the <b>server.py</b> code provided.</li>
-                 <li>Run <code>pip install flask flask-cors requests</code></li>
-                 <li>Start the server with <code>python server.py</code></li>
-                 <li>Keep the terminal open and refresh this page.</li>
+                 <li>Ensure Python is installed.</li>
+                 <li>Run: <code className="text-white bg-white/5 px-2 py-0.5 rounded select-all">pip install flask flask-cors requests</code></li>
+                 <li>Execute: <code className="text-white bg-white/5 px-2 py-0.5 rounded select-all">python server.py</code></li>
+                 <li>Once the terminal says "Running", refresh this dashboard.</li>
                </ol>
             </div>
             <button 
               onClick={fetchActivity}
-              className="px-8 py-3 bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-indigo-500 hover:text-white transition-all"
+              className="px-8 py-3 bg-white text-black font-bold uppercase text-xs tracking-widest hover:bg-indigo-500 hover:text-white transition-all active:scale-95"
             >
-              Re-scan Port 5000
+              Retry Sync (Port 5000)
             </button>
           </div>
         )}
@@ -164,13 +163,13 @@ const App: React.FC = () => {
                <div className="space-y-2">
                  {logs.map((log, i) => (
                    <div key={i} className="text-[11px] font-mono flex gap-3 opacity-80 hover:opacity-100 transition-opacity">
-                      <span className="text-indigo-500 shrink-0">>></span>
+                      <span className="text-indigo-500 shrink-0">{" >> "}</span>
                       <span className="text-slate-400">{log}</span>
                    </div>
                  ))}
                  {state.status === ConnectionStatus.CONNECTED && (
                    <div className="text-[11px] font-mono flex gap-3 animate-pulse text-indigo-400">
-                     <span className="shrink-0">>></span>
+                     <span className="shrink-0">{" >> "}</span>
                      <span>Monitoring Heartbeats...</span>
                    </div>
                  )}
