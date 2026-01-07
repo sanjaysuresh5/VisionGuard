@@ -1,14 +1,14 @@
 
 import { AWBucket, AWEvent } from '../types.ts';
 
-// Using 127.0.0.1 first as it's often more reliable for cross-origin requests in some browser environments
+// 127.0.0.1 is often preferred over localhost to avoid IPv6 resolution delays/errors
 const HOSTS = ['http://127.0.0.1:5600', 'http://localhost:5600'];
 const API_PATH = '/api/0';
 
 export class ActivityWatchService {
   private static activeHost: string = HOSTS[0];
 
-  private static async fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 5000): Promise<Response> {
+  private static async fetchWithTimeout(url: string, options: RequestInit = {}, timeout = 4000): Promise<Response> {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     
@@ -16,18 +16,17 @@ export class ActivityWatchService {
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
-        // credentials: 'omit' can help with some CORS issues on localhost
-        credentials: 'omit',
+        mode: 'cors', // Explicitly request CORS
         headers: {
           'Accept': 'application/json',
-          ...(options.headers || {})
+          ...options.headers,
         }
       });
       clearTimeout(id);
       return response;
     } catch (e) {
       clearTimeout(id);
-      console.warn(`VisionGuard: Fetch failed for ${url}`, e);
+      console.error(`VisionGuard: Fetch error for ${url}`, e);
       throw e;
     }
   }
@@ -44,21 +43,21 @@ export class ActivityWatchService {
 
     for (const host of HOSTS) {
       try {
-        console.log(`VisionGuard: Attempting connection to ${host}...`);
+        console.log(`VisionGuard: Trying connection to ${host}...`);
         const buckets = await this.tryFetchBuckets(host);
         this.activeHost = host; 
-        console.log(`VisionGuard: Successfully connected to ${host}`);
+        console.log(`VisionGuard: Connected to ActivityWatch at ${host}`);
         
-        // Find the window bucket - looking for typical watcher IDs
+        // Match against 'currentwindow' type (used by aw-watcher-window)
         const windowBucket = buckets.find(b => 
-          b.type === 'window' && 
+          (b.type === 'currentwindow' || b.type === 'window') && 
           (b.client.toLowerCase().includes('window') || b.id.toLowerCase().includes('window'))
         );
         
         if (windowBucket) {
-          console.log(`VisionGuard: Found window bucket: ${windowBucket.id}`);
+          console.log(`VisionGuard: Selected bucket ${windowBucket.id}`);
         } else {
-          console.warn("VisionGuard: Connected to AW but no 'window' bucket found. Is aw-watcher-window running?");
+          console.warn("VisionGuard: ActivityWatch connected but no window watcher bucket found.");
         }
         
         return windowBucket?.id || null;
@@ -68,7 +67,7 @@ export class ActivityWatchService {
       }
     }
 
-    throw lastError || new Error('Could not connect to ActivityWatch');
+    throw lastError || new Error('All connection attempts failed');
   }
 
   static async getLatestEvent(bucketId: string): Promise<AWEvent | null> {
