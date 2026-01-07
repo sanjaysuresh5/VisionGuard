@@ -1,0 +1,5 @@
+{
+  "name": "VisionGuard",
+  "description": "A health-focused productivity app that integrates with ActivityWatch to monitor screen time and enforce the 20-20-20 rule using AI-powered break suggestions.",
+  "requestFramePermissions": []
+}
